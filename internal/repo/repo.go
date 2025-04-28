@@ -16,6 +16,7 @@ import (
 // SQL-запрос на вставку задачи
 const (
 	insertTaskQuery = `INSERT INTO tasks (title, description) VALUES ($1, $2) RETURNING id;`
+	getTaskQuery    = `SELECT * FROM tasks WHERE id = $1;`
 )
 
 type repository struct {
@@ -24,7 +25,8 @@ type repository struct {
 
 // Repository - интерфейс с методом создания задачи
 type Repository interface {
-	CreateTask(ctx context.Context, task Task) (int, error) // Создание задачи
+	CreateTask(ctx context.Context, task Task) (int, error)
+	GetTaskById(ctx context.Context, id int) (Task, error) // Создание задачи
 }
 
 // NewRepository - создание нового экземпляра репозитория с подключением к PostgreSQL
@@ -70,4 +72,17 @@ func (r *repository) CreateTask(ctx context.Context, task Task) (int, error) {
 		return 0, errors.Wrap(err, "failed to insert task")
 	}
 	return id, nil
+}
+
+func (r *repository) GetTaskById(ctx context.Context, id int) (Task, error) {
+	var task Task
+	err := r.pool.QueryRow(ctx, getTaskQuery, id).Scan(&task.Id, &task.Title, &task.Description, &task.Status, &task.Created, &task.Updated)
+	if err != nil {
+		return Task{}, errors.Wrap(err, "failed get task")
+	}
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Task{}, errors.Wrap(err, "task not found")
+	}
+
+	return task, nil
 }
